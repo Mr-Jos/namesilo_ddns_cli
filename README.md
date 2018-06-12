@@ -8,14 +8,19 @@ It is designed for light-weight Linux distributions to dispense with 3rd-party d
 ### Feathers
 
 * [x] Multi-Domains Support
-* [x] Inherit Record TTL
-* [x] Request Balancing
+* [x] IPv4 & IPv6 Support
 * [x] Updating Report
-* [ ] IPv6 Support
+* [x] Automatic TTL Inheriting
+* [x] Minimal Calling Namesilo API
+* [x] Public IP Request Balancing
+
+### Requirements:
+* Necessary: `wget` or `curl`
+* Optional:  `ping` `ping6` `sleep`
 
 ### Test
 
-* Tested in DSM 6.1.7, Ubuntu 16.04 LTS.
+Tested in `DSM 6.1.7`, `Ubuntu 16.04 LTS`, `Centos 7.4.1708`.
 
 ## Usage
 
@@ -31,7 +36,6 @@ It is designed for light-weight Linux distributions to dispense with 3rd-party d
 
         40  *  *  *  *  /opt/namesilo_ddns_wodep.sh
 
-    You can also specify your email via adding `MAILTO`, script will send report only after DNS updating. That is, report won't be sent if no host needs to update.
 
 ### For Synology DSM
 
@@ -45,7 +49,8 @@ It is designed for light-weight Linux distributions to dispense with 3rd-party d
     * Start `Control Panel`, click `Advanced Mode`, open `Task Scheduler`
     * Access `Create` --> `Scheduled Task` --> `User-defined script`
     * Set `Schedule`, e.g. run every 1 hour daily
-    * Set `Task Settings`, check out `Send run details by email` and `... only when ... terminates abnormally`
-    * Input `Run command`, e.g.
+    * Set `Task Settings`, input `Run command`, e.g.
 
             /var/services/homes/<yourname>/namesilo_ddns_wodep.sh
+
+    * (Optional) Send report via mail. Check out `Send run details by email` and `... only when ... terminates abnormally`. The report will not be sent if no record is updated.
