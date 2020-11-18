@@ -1,56 +1,56 @@
 Namesilo DDNS without Dependences
 ===================
 
-`namesilo_ddns_wodep` is a shell script for Namesilo DDNS updating.
+`namesilo_ddns_wodep` is a shell script for Namesilo DDNS based on Bash builtin commands.
 
 It is designed for light-weight Linux distributions to dispense with 3rd-party dependences or libraries.
+
+### Version 2 Upgrade (2020.11)
+
+* Rewrite based on Bash builtin commands, and remove all other dependences except for `wget` or `curl`.
+* No API request needed for normal running by using cache, and possible for IP-checking with high frequency.
+* Create running log with automatic length control.
+* Enable command-line support.
 
 ### Feathers
 
 * [x] Multi-Domains Support
 * [x] IPv4 & IPv6 Support
-* [x] Updating Report
-* [x] Automatic TTL Inheriting
-* [x] Minimal Calling Namesilo API
-* [x] Public IP Request Balancing
+* [x] Command-Line Support
+* [x] Load Balancing for IP-Checking
+* [x] Logging with length control
+* [x] Minimal API requests
 
-### Requirements:
+### Requirements
+
 * Necessary: `wget` or `curl`
-* Optional:  `ping` `ping6` `sleep`
+* Optional:  `date`, `sleep`
 
-### Test
+### Tested System
 
-Tested in `DSM 6.1.7`, `Ubuntu 16.04 LTS`, `Centos 7.4.1708`.
+* `DSM 6.2.3`
+* `Ubuntu 20.04.1 LTS (WSL2)`
+* `EdgeOS (Debian 9)`
 
-## Usage
+### Usage
 
-### For General Linux Distributions
+```
+Usage: namesilo_ddns.sh <command> ... [parameters ...]
+Commands:
+  --help                   Show this help message.
+  --version                Show version info.
+  --key, -k <apikey>       Specify API key of Namesilo.
+  --host, -h <host>        Add a host for DDNS.
+  --force, -f              Force updating for unchanged IP.
+  --refetch, -r            Refetch info of records.
 
-1. Download the script to somewhere, e.g. `/opt/namesilo_ddns_wodep.sh`
+Example:
+  namesilo_ddns.sh -k c40031261ee449037a4b44b1 \
+      -h yourdomain1.tld \
+      -h subdomain1.yourdomain1.tld \
+      -h subdomain2.yourdomain2.tld
 
-2. Edit the script, set your `APIKEY` and `HOST` at the beginning.
-
-3. Run the script and test your settings.
-
-4. (Optional) Create cronjob. Edit `/etc/crontab` and add the line below:
-
-        40  *  *  *  *  /opt/namesilo_ddns_wodep.sh
-
-
-### For Synology DSM
-
-1. Download the script to your PC.
-
-2. Edit the script, set your `APIKEY` and `HOST` at the beginning.
-
-3. Log in your Synology DSM and start `File Station`, upload the script to your home directory, e.g. `/homes/<yourname>/`
-
-4. Set `Task Scheduler`.
-    * Start `Control Panel`, click `Advanced Mode`, open `Task Scheduler`
-    * Access `Create` --> `Scheduled Task` --> `User-defined script`
-    * Set `Schedule`, e.g. run every 1 hour daily
-    * Set `Task Settings`, input `Run command`, e.g.
-
-            /var/services/homes/<yourname>/namesilo_ddns_wodep.sh
-
-    * (Optional) Send report via mail. Check out `Send run details by email` and `... only when ... terminates abnormally`. The report will not be sent if no record is updated.
+Tips:
+  You had better to refetch records or delete log file,
+  if your DNS records have been modified in other ways.
+```
