@@ -22,18 +22,18 @@ declare APIKEY HOSTS
 
 ## ================ Settings =================
 
-declare LOG LOG_LTH LOG_TIME REQ_INTERVAL REQ_RETRY
+declare LOG LOG_LTH RUN_TIME REQ_INTERVAL REQ_RETRY
 
 ## Directories of log file (Default: in this script dir)
 LOG="${0%/*}/namesilo_ddns.log"
 
 ## Max lines of log
-LOG_LTH=2000
+LOG_LTH=200
 
-## Command for getting log header with time
+## Script start time for this running
 ## *Including optional requirement*
 ## (You can specify a time zone from command 'tzselect')
-LOG_TIME=" TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S' "
+RUN_TIME=$( TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S' )
 
 ## Command for setting interval between API requests
 ## *Including optional requirement*
@@ -52,7 +52,7 @@ fi
 declare IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS 
 declare FORCE REFETCH FUNC_RETURN 
 declare PROJECT COPYRIGHT HELP
-PROJECT="Namesilo DDNS without dependences v2.0 (2020.11.18)"
+PROJECT="Namesilo DDNS without dependences v2.1 (2020.11.18)"
 COPYRIGHT="Copyright (c) 2020 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
 HELP="Usage: namesilo_ddns.sh <command> ... [parameters ...]
@@ -126,31 +126,48 @@ function parse_args()
 
 function load_log()
 {
-    ## read and parse old log
+    ## read old log
     local LINES=() IDX=0
     if [[ -e $LOG ]]; then
-        local LINE CACHE
+        local LINE CACHE LAST_HEAD HELPFUL
         while read -r LINE; do
             if [[ -z $LINE ]]; then
                 continue
-            elif [[ ${LINE:0:1} != "@" ]]; then
+            elif [[ ${LINE:0:1} == "@" ]]; then
+                ## parse cache
+                [[ ${REFETCH:-false} == true ]] && continue
+                CACHE=$( echo -e ${LINE##*"="} )
+                case $LINE in
+                    "@Cache[IPv4-Address]"*)
+                        IP_ADDR_V4="$CACHE" ;;
+                    "@Cache[IPv6-Address]"*)
+                        IP_ADDR_V6="$CACHE" ;;
+                    "@Cache[Invalid-Hosts]"*)
+                        INV_HOSTS="${INV_HOSTS:-};$CACHE" ;;
+                    "@Cache[Record]"*)
+                        RECORDS+=("$CACHE") ;;
+                esac
+                continue
+            else
+                ## omit helpless line
                 IDX=$(( IDX + 1 ))
+                case $LINE in
+                    *"IP is not changed"*)              ;;
+                    *"address is unknown"*)             ;;
+                    *"network communication failed"*)   ;;
+                    *"==="*)
+                        if [[ ${LAST_HEAD:-0} -gt 0 ]]; then
+                            [[ ${HELPFUL:-false} != true ]] && IDX="$LAST_HEAD"
+                        fi
+                        LAST_HEAD="$IDX"
+                        HELPFUL=false
+                        ;;
+                    *)
+                        HELPFUL=true ;;
+                esac
                 LINES[$IDX]=$LINE
                 continue
-            elif [[ ${REFETCH:-false} == true ]]; then
-                continue
             fi
-            CACHE=$( echo -e ${LINE##*"="} )
-            case $LINE in
-                "@Cache[IPv4-Address]"*)
-                    IP_ADDR_V4="$CACHE" ;;
-                "@Cache[IPv6-Address]"*)
-                    IP_ADDR_V6="$CACHE" ;;
-                "@Cache[Invalid-Hosts]"*)
-                    INV_HOSTS="${INV_HOSTS:-};$CACHE" ;;
-                "@Cache[Record]"*)
-                    RECORDS+=("$CACHE") ;;
-            esac
         done < $LOG
     fi
 
@@ -178,12 +195,7 @@ function load_log()
     for (( IDX = START ; IDX <= END ; IDX++ )); do
         [[ -n ${LINES[IDX]:-} ]] && echo ${LINES[IDX]:-} >> $LOG
     done
-
-    ## write header for new log
-    set +e
-    LOG_TIME=$( eval ${LOG_TIME:-} 2>/dev/null )
-    set -e
-    echo $( _deviding 70 '=' "${LOG_TIME:-}" ) >> $LOG
+    echo $( _deviding 70 '=' "${RUN_TIME:-}" ) >> $LOG
 }
 
 function get_ip()

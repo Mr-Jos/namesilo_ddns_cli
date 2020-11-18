@@ -9,7 +9,7 @@ It is designed for light-weight Linux distributions to dispense with 3rd-party d
 
 * Rewrite based on Bash builtin commands, and remove all other dependences except for `wget` or `curl`.
 * No API request needed for normal running by using cache, and possible for IP-checking with high frequency.
-* Create running log with automatic length control.
+* Create running log with automatic compression and length control.
 * Enable command-line support.
 
 ### Feathers
