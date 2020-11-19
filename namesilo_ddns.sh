@@ -8,7 +8,7 @@ set -euo pipefail
 ##   Necessary: wget or curl
 ##   Optional : date, sleep
 
-## ================= config ==================
+## ================= configs =================
 
 declare -g APIKEY HOSTS
 
@@ -57,14 +57,14 @@ COPYRIGHT="Copyright (c) 2020 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
 HELP="Usage: namesilo_ddns.sh <command> ... [parameters ...]
 Commands:
-  --help                   Show this help message.
-  --version                Show version info.
-  --key, -k <apikey>       Specify API key of Namesilo.
-  --host, -h <host>        Add a host for DDNS.
-  --ipv4 <ipaddr>          Specify public IPv4 address.
-  --ipv6 <ipaddr>          Specify public IPv6 address.
-  --force-fetch            Force fetching cached records.
-  --force-update           Force updating unchanged IP.
+  --help                   Show this help message
+  --version                Show version info
+  --key, -k <apikey>       Specify API key of Namesilo
+  --host, -h <host>        Add a host for DDNS
+  --force-fetch            Force fetching cached records
+  --force-update           Force updating unchanged IP
+  --ipv4/--ipv6 <ipaddr>   Filter records to be updated with
+                             the IP address (default: auto)
 
 Example:
   namesilo_ddns.sh -k c40031261ee449037a4b44b1 \\
@@ -122,7 +122,9 @@ function parse_args()
             ;;
         --ipv4)
             shift
-            if [[ $1 =~ $RE_IPV4 ]]; then
+            if [[ $1 == "auto" ]]; then
+                P_IPV4="AUTO"
+            elif [[ $1 =~ $RE_IPV4 ]]; then
                 P_IPV4="$1"
             else
                 echo "Invalid IPv4 format: $1"
@@ -131,7 +133,9 @@ function parse_args()
             ;;
         --ipv6)
             shift
-            if [[ $1 =~ $RE_IPV6 ]]; then
+            if [[ $1 == "auto" ]]; then
+                P_IPV6="AUTO"
+            elif [[ $1 =~ $RE_IPV6 ]]; then
                 P_IPV6="$1"
             else
                 echo "Invalid IPv6 format: $1"

@@ -37,14 +37,14 @@ It is designed for light-weight Linux distributions to dispense with 3rd-party d
 ```
 Usage: namesilo_ddns.sh <command> ... [parameters ...]
 Commands:
-  --help                   Show this help message.
-  --version                Show version info.
-  --key, -k <apikey>       Specify API key of Namesilo.
-  --host, -h <host>        Add a host for DDNS.
-  --ipv4 <ipaddr>          Specify public IPv4 address.
-  --ipv6 <ipaddr>          Specify public IPv6 address.
-  --force-fetch            Force fetching cached records.
-  --force-update           Force updating unchanged IP.
+  --help                   Show this help message
+  --version                Show version info
+  --key, -k <apikey>       Specify API key of Namesilo
+  --host, -h <host>        Add a host for DDNS
+  --force-fetch            Force fetching cached records
+  --force-update           Force updating unchanged IP
+  --ipv4/--ipv6 <ipaddr>   Filter records to be updated with
+                             the IP address (default: auto)
 
 Example:
   namesilo_ddns.sh -k c40031261ee449037a4b44b1 \
@@ -61,3 +61,5 @@ Tips:
   Recommand to force fetching records or delete cache in log,
   if one of your DNS records have been modified in other ways.
 ```
+
+You can also edit the configs and settings in the head of script.
