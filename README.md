@@ -41,6 +41,8 @@ Commands:
   --version                Show version info.
   --key, -k <apikey>       Specify API key of Namesilo.
   --host, -h <host>        Add a host for DDNS.
+  --ipv4 <ipaddr>          Specify public IPv4 address.
+  --ipv6 <ipaddr>          Specify public IPv6 address.
   --force-fetch            Force fetching cached records.
   --force-update           Force updating unchanged IP.
 
@@ -51,6 +53,6 @@ Example:
       -h subdomain2.yourdomain2.tld
 
 Tips:
-  Recommand to force fetching records or delete cache in log file,
+  Recommand to force fetching records or delete cache in log,
   if one of your DNS records have been modified in other ways.
 ```

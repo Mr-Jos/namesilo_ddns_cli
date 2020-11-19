@@ -10,7 +10,7 @@ set -euo pipefail
 
 ## ================= config ==================
 
-declare APIKEY HOSTS
+declare -g APIKEY HOSTS
 
 ## Your API key and hosts for DDNS
 # APIKEY="c40031261ee449037a4b44b1"
@@ -22,7 +22,7 @@ declare APIKEY HOSTS
 
 ## ================ Settings =================
 
-declare LOG LOG_LTH RUN_TIME REQ_INTERVAL REQ_RETRY
+declare -g LOG LOG_LTH RUN_TIME REQ_INTERVAL REQ_RETRY
 
 ## Directories of log file (Default: in this script dir)
 LOG="${0%/*}/namesilo_ddns.log"
@@ -49,9 +49,9 @@ if [[ -z $( command -v wget ) && -z $( command -v curl ) ]]; then
     exit 1
 fi
 
-declare IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS 
-declare FORCE_UPDATE FORCE_FETCH FUNC_RETURN 
-declare PROJECT COPYRIGHT HELP
+declare -g IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS FUNC_RETURN
+declare -g P_IPV4 P_IPV6 P_FORCE_UPDATE P_FORCE_FETCH
+declare -g PROJECT COPYRIGHT LICENSE HELP
 PROJECT="Namesilo DDNS without dependences v2.1 (2020.11.18)"
 COPYRIGHT="Copyright (c) 2020 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
@@ -61,6 +61,8 @@ Commands:
   --version                Show version info.
   --key, -k <apikey>       Specify API key of Namesilo.
   --host, -h <host>        Add a host for DDNS.
+  --ipv4 <ipaddr>          Specify public IPv4 address.
+  --ipv6 <ipaddr>          Specify public IPv6 address.
   --force-fetch            Force fetching cached records.
   --force-update           Force updating unchanged IP.
 
@@ -71,7 +73,7 @@ Example:
       -h subdomain2.yourdomain2.tld
 
 Tips:
-  Recommand to force fetching records or delete cache in log file,
+  Recommand to force fetching records or delete cache in log,
   if one of your DNS records have been modified in other ways.
 "
 
@@ -79,7 +81,10 @@ function parse_args()
 {
     [[ $# -eq 0 ]] && return
     unset APIKEY HOSTS
-    local VAR
+    local RE_KEY="^[0-9a-f]{24}$"
+    local RE_HOST="^([a-zA-Z0-9\-]{1,63}\.)+[a-zA-Z0-9\-]{1,63}$"
+    local RE_IPV4="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
+    local RE_IPV6="^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{1,4}$"
     while [[ $# -gt 0 ]]; do case "$1" in
         --help)
             echo "${PROJECT:-}"
@@ -94,7 +99,7 @@ function parse_args()
             ;;
         --key | -k)
             shift
-            if [[ $1 =~ ^[0-9a-f]{24}$ ]]; then
+            if [[ $1 =~ $RE_KEY ]]; then
                 APIKEY="$1"
             else
                 echo "Invalid API key: $1"
@@ -103,19 +108,36 @@ function parse_args()
             ;;
         --host | -h)
             shift
-            VAR=(${1//./ })
-            if [[ ${#VAR[@]} -ge 2 ]]; then
+            if [[ $1 =~ $RE_HOST ]]; then
                 HOSTS+=("$1")
             else
                 echo "Invalid host format: $1"
                 exit 1
             fi
             ;;
+        --ipv4)
+            shift
+            if [[ $1 =~ $RE_IPV4 ]]; then
+                P_IPV4="$1"
+            else
+                echo "Invalid IPv4 format: $1"
+                exit 1
+            fi
+            ;;
+        --ipv6)
+            shift
+            if [[ $1 =~ $RE_IPV6 ]]; then
+                P_IPV6="$1"
+            else
+                echo "Invalid IPv6 format: $1"
+                exit 1
+            fi
+            ;;
         --force-fetch)
-            FORCE_FETCH=true
+            P_FORCE_FETCH=true
             ;;
         --force-update)
-            FORCE_UPDATE=true
+            P_FORCE_UPDATE=true
             ;;
         *)
             echo "Unknown parameter: $1"
@@ -135,7 +157,7 @@ function load_log()
                 continue
             elif [[ ${LINE:0:1} == "@" ]]; then
                 ## parse cache
-                [[ ${FORCE_FETCH:-false} == true ]] && continue
+                [[ ${P_FORCE_FETCH:-false} == true ]] && continue
                 CACHE=$( echo -e ${LINE##*"="} )
                 case $LINE in
                     "@Cache[IPv4-Address]"*)
@@ -200,7 +222,7 @@ function load_log()
 
 function get_ip()
 {
-    local PATTERN POOL ARG
+    local ARG POOL RE IP_SPECIFY
     if [[ $1 == "-v4" ]]; then
         ARG="-4"
         POOL=(
@@ -210,7 +232,7 @@ function get_ip()
             "https://ipv4.icanhazip.com"
             "https://ipv4.wtfismyip.com/text"
         )
-        PATTERN="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
+        RE="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
     elif [[ $1 == "-v6" ]]; then
         ARG="-6"
         POOL=(
@@ -220,31 +242,36 @@ function get_ip()
             "https://ipv6.icanhazip.com"
             "https://ipv6.wtfismyip.com/text"
         )
-        PATTERN="^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{1,4}$"
+        RE="^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{1,4}$"
     else
         return
     fi
+    IP_SPECIFY=${2:-}
     
-    ## get current ip from pool in random order
-    local LTH=${#POOL[@]}
-    local IDX=$(( $RANDOM % $LTH ))
-    local TRY=0
     local RES
-    while [[ $TRY -lt $LTH ]]; do
-        TRY=$(( TRY + 1 ))
-        set +e
-        if [[ -n $( command -v wget ) ]]; then
-            RES=$( wget -qO-  -t 1   -T 5 $ARG ${POOL[IDX]} )
-        elif [[ -n $( command -v curl ) ]]; then
-            RES=$( curl -s --retry 0 -m 5 $ARG ${POOL[IDX]} )
-        fi
-        set -e
-        [[ $RES =~ $PATTERN ]] && break
-        RES="NULL"
-        IDX=$(( IDX + 1 ))
-        [[ $IDX -ge $LTH ]] && IDX=$(( IDX - LTH ))
-    done
-    
+    if [[ $IP_SPECIFY =~ $RE ]]; then
+        RES="$IP_SPECIFY"
+    else
+        ## get public ip from pool in random order
+        local LTH=${#POOL[@]}
+        local IDX=$(( $RANDOM % $LTH ))
+        local TRY=0
+        while [[ $TRY -lt $LTH ]]; do
+            TRY=$(( TRY + 1 ))
+            set +e
+            if [[ -n $( command -v wget ) ]]; then
+                RES=$( wget -qO-  -t 1   -T 5 $ARG ${POOL[IDX]} )
+            elif [[ -n $( command -v curl ) ]]; then
+                RES=$( curl -s --retry 0 -m 5 $ARG ${POOL[IDX]} )
+            fi
+            set -e
+            [[ $RES =~ $RE ]] && break
+            RES="NULL"
+            IDX=$(( IDX + 1 ))
+            [[ $IDX -ge $LTH ]] && IDX=$(( IDX - LTH ))
+        done
+    fi
+
     if [[ $ARG == "-4" ]]; then
         if [[ ${RES:=NULL} != ${IP_ADDR_V4:=NULL} ]]; then
             echo "IPv4 address changed to {$RES}" >> $LOG
@@ -356,7 +383,7 @@ function update_record()
         FAIL=$(( FAIL + 1 ))
         CHECK="Format of record ID [$ID] is invalid"
     elif [[ ${IP_ADDR:-NULL} == $VALUE ]]; then
-        [[ ${FORCE_UPDATE:-false} != true ]] && CHECK="IP is not changed"
+        [[ ${P_FORCE_UPDATE:-false} != true ]] && CHECK="IP is not changed"
     fi
     if [[ -n ${CHECK:-} ]]; then
         echo "Update record [$TYPE//$HOST//${ID:0:4}]: $CHECK" >> $LOG
@@ -419,12 +446,21 @@ function main()
         echo "No valid API key or host" >> $LOG
         exit 1
     fi
-    get_ip -v4
-    get_ip -v6
-    local HOST DOMAIN RECORD VAR FAIL ID CHECKED
-    declare -A STATUS
+
+    ## get public ip
+    if [[ -z ${P_IPV4:-} && -z ${P_IPV6:-} ]]; then
+        get_ip -v4
+        get_ip -v6
+    else
+        IP_ADDR_V4="NULL"
+        IP_ADDR_V6="NULL"
+        [[ -n ${P_IPV4:-} ]] && get_ip -v4 ${P_IPV4:-}
+        [[ -n ${P_IPV6:-} ]] && get_ip -v6 ${P_IPV6:-}
+    fi
     
     ## initialize host status dictionary
+    local HOST DOMAIN RECORD VAR FAIL ID CHECKED
+    declare -A STATUS
     for HOST in "${HOSTS[@]:-}"; do
         [[ -z $HOST ]] && continue
         VAR=(${HOST//./ })
