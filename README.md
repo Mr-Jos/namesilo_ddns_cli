@@ -41,8 +41,8 @@ Commands:
   --version                Show version info.
   --key, -k <apikey>       Specify API key of Namesilo.
   --host, -h <host>        Add a host for DDNS.
-  --force, -f              Force updating for unchanged IP.
-  --refetch, -r            Refetch info of records.
+  --force-fetch            Force fetching cached records.
+  --force-update           Force updating unchanged IP.
 
 Example:
   namesilo_ddns.sh -k c40031261ee449037a4b44b1 \
@@ -51,6 +51,6 @@ Example:
       -h subdomain2.yourdomain2.tld
 
 Tips:
-  You had better to refetch records or delete log file,
-  if your DNS records have been modified in other ways.
+  Recommand to force fetching records or delete cache in log file,
+  if one of your DNS records have been modified in other ways.
 ```

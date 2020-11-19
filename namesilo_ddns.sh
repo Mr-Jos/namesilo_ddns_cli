@@ -50,7 +50,7 @@ if [[ -z $( command -v wget ) && -z $( command -v curl ) ]]; then
 fi
 
 declare IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS 
-declare FORCE REFETCH FUNC_RETURN 
+declare FORCE_UPDATE FORCE_FETCH FUNC_RETURN 
 declare PROJECT COPYRIGHT HELP
 PROJECT="Namesilo DDNS without dependences v2.1 (2020.11.18)"
 COPYRIGHT="Copyright (c) 2020 Mr.Jos"
@@ -61,8 +61,8 @@ Commands:
   --version                Show version info.
   --key, -k <apikey>       Specify API key of Namesilo.
   --host, -h <host>        Add a host for DDNS.
-  --force, -f              Force updating for unchanged IP.
-  --refetch, -r            Refetch info of records.
+  --force-fetch            Force fetching cached records.
+  --force-update           Force updating unchanged IP.
 
 Example:
   namesilo_ddns.sh -k c40031261ee449037a4b44b1 \\
@@ -71,8 +71,8 @@ Example:
       -h subdomain2.yourdomain2.tld
 
 Tips:
-  You had better to refetch records or delete log file,
-  if your DNS records have been modified in other ways.
+  Recommand to force fetching records or delete cache in log file,
+  if one of your DNS records have been modified in other ways.
 "
 
 function parse_args()
@@ -111,11 +111,11 @@ function parse_args()
                 exit 1
             fi
             ;;
-        --refetch | -r)
-            REFETCH=true
+        --force-fetch)
+            FORCE_FETCH=true
             ;;
-        --force | -f)
-            FORCE=true
+        --force-update)
+            FORCE_UPDATE=true
             ;;
         *)
             echo "Unknown parameter: $1"
@@ -135,7 +135,7 @@ function load_log()
                 continue
             elif [[ ${LINE:0:1} == "@" ]]; then
                 ## parse cache
-                [[ ${REFETCH:-false} == true ]] && continue
+                [[ ${FORCE_FETCH:-false} == true ]] && continue
                 CACHE=$( echo -e ${LINE##*"="} )
                 case $LINE in
                     "@Cache[IPv4-Address]"*)
@@ -356,7 +356,7 @@ function update_record()
         FAIL=$(( FAIL + 1 ))
         CHECK="Format of record ID [$ID] is invalid"
     elif [[ ${IP_ADDR:-NULL} == $VALUE ]]; then
-        [[ ${FORCE:-false} != true ]] && CHECK="IP is not changed"
+        [[ ${FORCE_UPDATE:-false} != true ]] && CHECK="IP is not changed"
     fi
     if [[ -n ${CHECK:-} ]]; then
         echo "Update record [$TYPE//$HOST//${ID:0:4}]: $CHECK" >> $LOG
