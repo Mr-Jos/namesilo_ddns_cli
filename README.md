@@ -52,6 +52,11 @@ Example:
       -h subdomain1.yourdomain1.tld \
       -h subdomain2.yourdomain2.tld
 
+Exit codes:
+    0    All hosts have been updated successful.
+    1    Occur error during preparing parameters.
+    2    Occur error during fetching & updating records.
+
 Tips:
   Recommand to force fetching records or delete cache in log,
   if one of your DNS records have been modified in other ways.

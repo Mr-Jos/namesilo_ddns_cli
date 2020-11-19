@@ -52,7 +52,7 @@ fi
 declare -g IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS FUNC_RETURN
 declare -g P_IPV4 P_IPV6 P_FORCE_UPDATE P_FORCE_FETCH
 declare -g PROJECT COPYRIGHT LICENSE HELP
-PROJECT="Namesilo DDNS without dependences v2.1 (2020.11.18)"
+PROJECT="Namesilo DDNS without dependences v2.2 (2020.11.19)"
 COPYRIGHT="Copyright (c) 2020 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
 HELP="Usage: namesilo_ddns.sh <command> ... [parameters ...]
@@ -71,6 +71,11 @@ Example:
       -h yourdomain1.tld \\
       -h subdomain1.yourdomain1.tld \\
       -h subdomain2.yourdomain2.tld
+
+Exit codes:
+    0    All hosts have been updated successful.
+    1    Occur error during preparing parameters.
+    2    Occur error during fetching & updating records.
 
 Tips:
   Recommand to force fetching records or delete cache in log,
@@ -174,7 +179,7 @@ function load_log()
                 ## omit helpless line
                 IDX=$(( IDX + 1 ))
                 case $LINE in
-                    *"IP is not changed"*)              ;;
+                    *"address is unchanged"*)           ;;
                     *"address is unknown"*)             ;;
                     *"network communication failed"*)   ;;
                     *"==="*)
@@ -339,8 +344,14 @@ function fetch_records()
     done <<< "$RES"
     RECORDS+=(${FETCHED[@]:-})
     [[ ${CODE:=000} -eq 000 ]] && DETAIL="network communication failed"
+
+    ## result
     echo "Fetch ${#FETCHED[@]} record(s) of [$DOMAIN]: ($CODE) ${DETAIL:-}" >> $LOG
-    FUNC_RETURN="$CODE"
+    if [[ $CODE -eq 000 ]]; then
+        FUNC_RETURN="UNFETCHED#ERROR#"
+    else
+        FUNC_RETURN="FETCHED"
+    fi
 }
 
 function update_record()
@@ -367,27 +378,30 @@ function update_record()
 
     ## update check
     local IP_ADDR CHECK
-    if [[ $TYPE == "A" ]]; then
+    if [[ ! $ID =~ ^[0-9a-fA-F]{32}$ ]]; then
+        CHECK="Format of record ID [$ID] is invalid"
+        FAIL=$(( FAIL + 1 ))
+    elif [[ $TYPE == "A" ]]; then
         IP_ADDR=${IP_ADDR_V4:-NULL}
+        [[ $IP_ADDR == $VALUE ]] && CHECK="IPv4 address is unchanged"
         [[ $IP_ADDR == "NULL" ]] && CHECK="IPv4 address is unknown"
     elif [[ $TYPE == "AAAA" ]]; then
         IP_ADDR=${IP_ADDR_V6:-NULL}
+        [[ $IP_ADDR == $VALUE ]] && CHECK="IPv6 address is unchanged"
         [[ $IP_ADDR == "NULL" ]] && CHECK="IPv6 address is unknown"
     else
-        FAIL=$(( FAIL + 1 ))
         CHECK="Record type [$TYPE] is not supported"
-    fi
-    if [[ -n ${CHECK:-} ]]; then
-        unset
-    elif [[ ! $ID =~ ^[0-9a-fA-F]{32}$ ]]; then
         FAIL=$(( FAIL + 1 ))
-        CHECK="Format of record ID [$ID] is invalid"
-    elif [[ ${IP_ADDR:-NULL} == $VALUE ]]; then
-        [[ ${P_FORCE_UPDATE:-false} != true ]] && CHECK="IP is not changed"
+    fi
+    if [[ ${P_FORCE_UPDATE:-false} == true ]]; then
+        [[ ${CHECK:-} == *"unchanged"* ]] && CHECK=""
     fi
     if [[ -n ${CHECK:-} ]]; then
         echo "Update record [$TYPE//$HOST//${ID:0:4}]: $CHECK" >> $LOG
         FUNC_RETURN="$ID|$TYPE|$HOST|$VALUE|$TTL|$FAIL"
+        if [[ -z ${IP_ADDR:-} ]]; then
+            FUNC_RETURN="$FUNC_RETURN#ERROR#"
+        fi
         return
     fi
 
@@ -405,9 +419,9 @@ function update_record()
         RES=$( curl -s --retry 1 -m 10 $REQ )
     fi
     set -e
-
+    
     ## parse result response
-    local CODE DETAIL NEW_ID
+    local CODE DETAIL NEW_ID=""
     local TAG TEXT XPATH="" IFS=\>
     while read -d \< TAG TEXT; do
         if [[ ${TAG:0:1} == "?" ]]; then     ## xml declare
@@ -427,6 +441,8 @@ function update_record()
         fi
     done <<< "$RES"
     [[ ${CODE:=000} -eq 000 ]] && DETAIL="network communication failed"
+
+    ## result
     [[ ${CODE:=000} -eq 300 ]] && DETAIL="$DETAIL [${ID:0:4}=>${NEW_ID:0:4}]"
     echo "Update record [$TYPE//$HOST//${ID:0:4}]: ($CODE) ${DETAIL:-}" >> $LOG
     if [[ $CODE -eq 300 ]]; then
@@ -437,6 +453,9 @@ function update_record()
         FAIL=$(( FAIL + 1 ))
     fi
     FUNC_RETURN="$ID|$TYPE|$HOST|$VALUE|$TTL|$FAIL"
+    if [[ $CODE -ne 300 ]]; then
+        FUNC_RETURN="$FUNC_RETURN#ERROR#"
+    fi
 }
 
 function main()
@@ -459,8 +478,9 @@ function main()
     fi
     
     ## initialize host status dictionary
-    local HOST DOMAIN RECORD VAR FAIL ID CHECKED
     declare -A STATUS
+    local HOST DOMAIN RECORD VAR FAIL ID CHECKED
+    local SUCCESS=true
     for HOST in "${HOSTS[@]:-}"; do
         [[ -z $HOST ]] && continue
         VAR=(${HOST//./ })
@@ -503,7 +523,11 @@ function main()
         DOMAIN="${VAR[-2]}.${VAR[-1]}"
         if [[ "|$FETCHED_DOMAIN|" != *"|$DOMAIN|"* ]]; then
             fetch_records $DOMAIN
-            if [[ ${FUNC_RETURN:-000} -ne 000 ]]; then
+            if [[ -z $FUNC_RETURN ]]; then
+                SUCCESS=false
+            elif [[ $FUNC_RETURN == *"#ERROR#"* ]]; then
+                SUCCESS=false
+            else
                 FETCHED_DOMAIN="$FETCHED_DOMAIN|$DOMAIN"
             fi
         fi
@@ -525,10 +549,15 @@ function main()
             continue    ## the host has been disabled
         fi
         update_record $RECORD
-        if [[ -n $FUNC_RETURN ]]; then
-            CHECKED+=("$FUNC_RETURN")
-            STATUS[$HOST]="<matched>"
+        if [[ -z $FUNC_RETURN ]]; then
+            SUCCESS=false
+            continue
+        elif [[ $FUNC_RETURN == *"#ERROR#"* ]]; then
+            SUCCESS=false
+            FUNC_RETURN=${FUNC_RETURN//"#ERROR#"/}
         fi
+        CHECKED+=("$FUNC_RETURN")
+        STATUS[$HOST]="<matched>"
     done
     RECORDS=(${CHECKED[@]:-})
 
@@ -545,6 +574,7 @@ function main()
             INV_HOSTS="$INV_HOSTS;$HOST"
         fi
     done
+    [[ -n $INV_HOSTS ]] && SUCCESS=false
 
     ## print records for next running
     echo "@Cache[IPv4-Address]=${IP_ADDR_V4:-NULL}" >> $LOG
@@ -555,6 +585,13 @@ function main()
     for RECORD in "${RECORDS[@]:-}"; do
         [[ -n $RECORD ]] && echo "@Cache[Record]=$RECORD" >> $LOG
     done
+
+    ## exit with running status
+    if [[ $SUCCESS == true ]]; then
+        exit 0
+    else
+        exit 2
+    fi
 }
 
 parse_args $*
