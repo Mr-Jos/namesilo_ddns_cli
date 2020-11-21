@@ -52,7 +52,7 @@ fi
 declare -g IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS FUNC_RETURN
 declare -g P_IPV4 P_IPV6 P_FORCE_UPDATE P_FORCE_FETCH
 declare -g PROJECT COPYRIGHT LICENSE HELP
-PROJECT="Namesilo DDNS without dependences v2.2 (2020.11.19)"
+PROJECT="Namesilo DDNS without dependences v2.3 (2020.11.20)"
 COPYRIGHT="Copyright (c) 2020 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
 HELP="Usage: namesilo_ddns.sh <command> ... [parameters ...]
@@ -256,17 +256,18 @@ function get_ip()
         return
     fi
     IP_SPECIFY=${2:-}
-    
+
     local RES
     if [[ $IP_SPECIFY =~ $RE ]]; then
         RES="$IP_SPECIFY"
     else
         ## get public ip from pool in random order
-        local LTH=${#POOL[@]}
-        local IDX=$(( $RANDOM % $LTH ))
-        local TRY=0
-        while [[ $TRY -lt $LTH ]]; do
-            TRY=$(( TRY + 1 ))
+        local IDX IDX_RAN VAR
+        for (( IDX = ${#POOL[@]} - 1; IDX >= 0; IDX--  )); do
+            IDX_RAN=$(( $RANDOM % (IDX + 1) ))
+            VAR="${POOL[IDX]}"
+            POOL[$IDX]="${POOL[IDX_RAN]}"
+            POOL[$IDX_RAN]="$VAR"
             set +e
             if [[ -n $( command -v wget ) ]]; then
                 RES=$( wget -qO-  -t 1   -T 5 $ARG ${POOL[IDX]} )
@@ -274,20 +275,21 @@ function get_ip()
                 RES=$( curl -s --retry 0 -m 5 $ARG ${POOL[IDX]} )
             fi
             set -e
-            [[ $RES =~ $RE ]] && break
-            RES="NULL"
-            IDX=$(( IDX + 1 ))
-            [[ $IDX -ge $LTH ]] && IDX=$(( IDX - LTH ))
+            if [[ $RES =~ $RE ]]; then
+                break
+            else
+                RES="NULL"
+            fi
         done
     fi
 
     if [[ $ARG == "-4" ]]; then
-        if [[ ${RES:=NULL} != ${IP_ADDR_V4:=NULL} ]]; then
+        if [[ ${RES:=NULL} != "NULL" && $RES != ${IP_ADDR_V4:-NULL} ]]; then
             echo "IPv4 address changed to {$RES}" >> $LOG
         fi
         IP_ADDR_V4=$RES
     else
-        if [[ ${RES:=NULL} != ${IP_ADDR_V6:=NULL} ]]; then
+        if [[ ${RES:=NULL} != "NULL" && $RES != ${IP_ADDR_V6:-NULL} ]]; then
             echo "IPv6 address changed to {$RES}" >> $LOG
         fi
         IP_ADDR_V6=$RES
