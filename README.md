@@ -42,11 +42,13 @@ Commands:
   --help                   Show this help message
   --version                Show version info
   --key, -k <apikey>       Specify API key of Namesilo
-  --host, -h <host>        Add a host for DDNS
-  --force-fetch            Force fetching cached records
-  --force-update           Force updating unchanged IP
-  --ipv4/--ipv6 <ipaddr>   Filter records to be updated with
-                             the IP address (default: auto)
+  --host, -h <host>        Add a host to filter current records
+  --ipv4 <ipaddr>          Only update A records 
+                             with specified IP (default: auto)
+  --ipv6 <ipaddr>          Only update AAAA records 
+                             with specified IP (default: auto)
+  --force-fetch            Forcely fetch records ignoring cache
+  --force-update           Forcely update IP even if not change
 
 Example:
   namesilo_ddns.sh -k c40031261ee449037a4b44b1 \
