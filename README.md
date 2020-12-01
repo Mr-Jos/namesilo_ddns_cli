@@ -1,11 +1,10 @@
-Namesilo DDNS without Dependences
+Namesilo DDNS CLI
 ===================
 
-`namesilo_ddns_wodep` is a command line tool written in pure Shell for Namesilo DDNS.
+`namesilo_ddns_cli` is a command line tool for Namesilo DDNS, which is written in Bash depending on wget/curl only.
 
-It is designed mainly to reduce dependences and system load as much as possible.
-
-Therefore, light-weight Linux distributions are especially appropriate to use it, like Raspberry, Openwrt, Merlin, DSM, QTS...
+It is designed mainly to reduce dependences and system load as much as possible. 
+Therefore, light-weight Linux distributions are especially appropriate to use it, like Raspberry, Openwrt, Merlin, Unraid, DSM, QTS...
 
 # Version 2 Upgrade (2020.11)
 
@@ -18,10 +17,9 @@ Therefore, light-weight Linux distributions are especially appropriate to use it
 
 * [x] Multi-Domains Support
 * [x] IPv4 & IPv6 Support
-* [x] Command-Line Support
-* [x] Load Balancing for IP-Checking
-* [x] Logging with length control
-* [x] Minimal API requests
+* [x] Load Balancing for IP-Check
+* [x] Minimal API requests by Cache
+* [x] Logging with Length Control
 
 # Requirements
 
@@ -73,6 +71,7 @@ You can also edit the configs and settings in the head of script.
 ## Regular Running for common Linux
 
   1. SSH to your device , and place `namesilo_ddns.sh` into somewhere, like `/opt/ddns/`.
+  (Note: For EdgeOS, the script should be placed in `/config/scripts/`)
 
   2. Make sure your permissions of destination and script:
 ```bash
