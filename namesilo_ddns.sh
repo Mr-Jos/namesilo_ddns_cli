@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
 ## Namesilo DDNS without dependences
