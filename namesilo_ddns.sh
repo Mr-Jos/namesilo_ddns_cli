@@ -52,7 +52,7 @@ fi
 declare -g IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS FUNC_RETURN
 declare -g P_IPV4 P_IPV6 P_FORCE_UPDATE P_FORCE_FETCH
 declare -g PROJECT COPYRIGHT LICENSE HELP
-PROJECT="Namesilo DDNS without dependences v2.4 (2020.11.29)"
+PROJECT="Namesilo DDNS without dependences v2.5 (2021.01.27)"
 COPYRIGHT="Copyright (c) 2020 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
 HELP="Usage: namesilo_ddns.sh <command> ... [parameters ...]
@@ -88,7 +88,7 @@ function parse_args()
 {
     [[ $# -eq 0 ]] && return
     unset APIKEY HOSTS
-    local RE_KEY="^[0-9a-f]{24}$"
+    local RE_KEY="^[0-9a-fA-F]{16,32}$"
     local RE_HOST="^([a-zA-Z0-9\-]{1,63}\.)+[a-zA-Z0-9\-]{1,63}$"
     local RE_IPV4="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
     local RE_IPV6="^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{1,4}$"
