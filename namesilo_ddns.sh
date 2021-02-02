@@ -6,23 +6,10 @@ set -euo pipefail
 
 ## Requirements
 ##   Necessary: wget or curl
-##   Optional : date, sleep
-
-## ================= configs =================
-
-declare -g APIKEY HOSTS
-
-## Your API key and hosts for DDNS
-# APIKEY="c40031261ee449037a4b44b1"
-# HOST=(
-#     "yourdomain1.tld"
-#     "subdomain1.yourdomain1.tld"
-#     "subdomain2.yourdomain2.tld"
-# )
 
 ## ================ Settings =================
 
-declare -g LOG LOG_LTH RUN_TIME REQ_INTERVAL REQ_RETRY
+declare -g LOG LOG_LTH REQ_INTERVAL REQ_RETRY
 
 ## Directories of log file (Default: in this script dir)
 LOG="${0%/*}/namesilo_ddns.log"
@@ -30,14 +17,8 @@ LOG="${0%/*}/namesilo_ddns.log"
 ## Max lines of log
 LOG_LTH=200
 
-## Script start time for this running
-## *Including optional requirement*
-## (You can specify a time zone from command 'tzselect')
-RUN_TIME=$( TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S' )
-
-## Command for setting interval between API requests
-## *Including optional requirement*
-REQ_INTERVAL=" sleep 5s "
+## Interval seconds between API requests
+REQ_INTERVAL=5
 
 ## Retry limit for updating-failed host before disabled
 REQ_RETRY=2
@@ -50,10 +31,10 @@ if [[ -z $( command -v wget ) && -z $( command -v curl ) ]]; then
 fi
 
 declare -g IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS FUNC_RETURN
-declare -g P_IPV4 P_IPV6 P_FORCE_UPDATE P_FORCE_FETCH
+declare -g APIKEY HOSTS P_IPV4 P_IPV6 P_FORCE_UPDATE P_FORCE_FETCH
 declare -g PROJECT COPYRIGHT LICENSE HELP
-PROJECT="Namesilo DDNS without dependences v2.5 (2021.01.27)"
-COPYRIGHT="Copyright (c) 2020 Mr.Jos"
+PROJECT="Namesilo DDNS without dependences v2.6 (2021.02.02)"
+COPYRIGHT="Copyright (c) 2021 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
 HELP="Usage: namesilo_ddns.sh <command> ... [parameters ...]
 Commands:
@@ -216,9 +197,10 @@ function load_log()
     }
 
     ## rewrite old log with length control
-    local START END
+    local START END RUN_TIME
     END=$(( IDX ))
     START=$(( END - LOG_LTH + 1 ))
+    RUN_TIME=$( printf '%(%Y-%m-%d %H:%M:%S)T\n' "-1" )
     if [[ $START -le 0 ]]; then
         START=1
         echo -n "" > $LOG
@@ -238,20 +220,20 @@ function get_ip()
         ARG="-4"
         POOL=(
             "http://v4.ident.me"
-            "https://ip4.nnev.de"
-            "https://v4.ifconfig.co"
-            "https://ipv4.icanhazip.com"
-            "https://ipv4.wtfismyip.com/text"
+            "http://ip4.nnev.de"
+            "http://v4.ifconfig.co"
+            "http://ipv4.icanhazip.com"
+            "http://ipv4.wtfismyip.com/text"
         )
         RE="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
     elif [[ $1 == "-v6" ]]; then
         ARG="-6"
         POOL=(
             "http://v6.ident.me"
-            "https://ip6.nnev.de"
-            "https://v6.ifconfig.co"
-            "https://ipv6.icanhazip.com"
-            "https://ipv6.wtfismyip.com/text"
+            "http://ip6.nnev.de"
+            "http://v6.ifconfig.co"
+            "http://ipv6.icanhazip.com"
+            "http://ipv6.wtfismyip.com/text"
         )
         RE="^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{1,4}$"
     else
@@ -308,7 +290,7 @@ function fetch_records()
     REQ="https://www.namesilo.com/api/dnsListRecords"
     REQ="$REQ?version=1&type=xml&key=$APIKEY&domain=$DOMAIN"
     set +e
-    $( ${REQ_INTERVAL:-} 1>/dev/null 2>/dev/null )
+    read -rt ${REQ_INTERVAL:=0} <> <(:) || :
     if [[ -n $( command -v wget ) ]]; then
         RES=$( wget -qO-  -t 2   -T 20 $REQ )
     elif [[ -n $( command -v curl ) ]]; then
@@ -419,7 +401,7 @@ function update_record()
     REQ="$REQ?version=1&type=xml&key=$APIKEY&domain=$DOMAIN"
     REQ="$REQ&rrid=$ID&rrhost=$SUBDOMAIN&rrvalue=$IP_ADDR&rrttl=${TTL:=3600}"
     set +e
-    $( ${REQ_INTERVAL:-} 1>/dev/null 2>/dev/null )
+    read -rt ${REQ_INTERVAL:=0} <> <(:) || :
     if [[ -n $( command -v wget ) ]]; then
         RES=$( wget -qO-  -t 2   -T 10 $REQ )
     elif [[ -n $( command -v curl ) ]]; then

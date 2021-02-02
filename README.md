@@ -24,7 +24,6 @@ Therefore, light-weight Linux distributions are especially appropriate to use it
 # Requirements
 
 * Necessary: `wget` or `curl`
-* Optional:  `date`, `sleep`
 
 # Tested System
 
