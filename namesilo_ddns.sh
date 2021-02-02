@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-## Namesilo DDNS Command Line Tool
-## Author: Mr.Jos
-## Requirements: wget or curl
+## Project:     Namesilo DDNS CLI
+## Author:      Mr.Jos
+## Requirement: wget/curl
 
 ## ======================== Settings =========================
 
 declare -g LOG LOG_LTH LOG_TZ REQ_INTERVAL REQ_RETRY
 
-## Directories of log file (Default: in this script dir)
+## Directories of log file
 LOG="${0%/*}/namesilo_ddns.log"
 
 ## Max lines of log
 LOG_LTH=100
 
-## Time zone for logging time (command: tzselect)
+## Time zone for logging time (tip: use `tzselect`)
 LOG_TZ='Asia/Shanghai'
 
 ## Interval seconds between API requests
@@ -27,23 +27,18 @@ REQ_RETRY=2
 ## ===========================================================
 
 declare -g IP_ADDR_V4 IP_ADDR_V6 INV_HOSTS RECORDS FUNC_RETURN
-declare -g APIKEY HOSTS P_IPV4 P_IPV6 P_FORCE_UPDATE P_FORCE_FETCH
+declare -g APIKEY HOSTS IGNORE_CACHE
 declare -g PROJECT COPYRIGHT LICENSE HELP
-PROJECT="Namesilo DDNS without dependences v2.6 (2021.02.02)"
+PROJECT="Namesilo DDNS CLI v2.7 (2021.02.02)"
 COPYRIGHT="Copyright (c) 2021 Mr.Jos"
 LICENSE="MIT License: <https://opensource.org/licenses/MIT>"
 HELP="Usage: namesilo_ddns.sh <command> ... [parameters ...]
 Commands:
   --help                   Show this help message
   --version                Show version info
-  --key,  -k <apikey>      Specify Namesilo API key
+  --key, -k <apikey>       Specify Namesilo API key
   --host, -h <host>        Add a hostname
-  --ipv4, -4 <ipaddr>      Only update A records 
-                             with specified IP (default: auto)
-  --ipv6, -6 <ipaddr>      Only update AAAA records 
-                             with specified IP (default: auto)
-  --force-fetch            Forcely fetch records ignoring cache
-  --force-update           Forcely update IP even if not change
+  --refetch, -r            Refetch records from Namesilo
 
 Example:
   namesilo_ddns.sh -k c40031261ee449037a4b44b1 \\
@@ -57,8 +52,8 @@ Exit codes:
     9    Arguments error
 
 Tips:
-  Recommand to force fetching records or delete cache in log,
-  if one of your DNS records have been modified by other ways.
+  Strongly recommand to refetch records or clear caches in log,
+  if your DNS records have been updated by other ways.
 "
 
 parse_args()
@@ -97,48 +92,19 @@ parse_args()
                 exit 9
             fi
             ;;
-        --ipv4 | -4)
-            shift
-            if [[ $1 == "auto" ]]; then
-                P_IPV4="AUTO"
-            elif [[ $1 =~ $RE_IPV4 ]]; then
-                P_IPV4="$1"
-            else
-                echo "Invalid IPv4 format: $1"
-                exit 9
-            fi
-            ;;
-        --ipv6 | -6)
-            shift
-            if [[ $1 == "auto" ]]; then
-                P_IPV6="AUTO"
-            elif [[ $1 =~ $RE_IPV6 ]]; then
-                P_IPV6="$1"
-            else
-                echo "Invalid IPv6 format: $1"
-                exit 9
-            fi
-            ;;
-        --force-fetch)
-            P_FORCE_FETCH=true
-            ;;
-        --force-update)
-            P_FORCE_UPDATE=true
-            ;;
-        *)
-            echo "Unknown parameter: $1"
-            exit 9
+        --refetch | -r )
+            IGNORE_CACHE=true
             ;;
     esac; shift; done
 
-    if [[ -z $( command -v wget ) && -z $( command -v curl ) ]]; then
-        echo "Necessary requirement (wget/curl) does not exist."
-        exit 9
-    elif [[ ! ${APIKEY:-} =~ $RE_KEY ]]; then
+    if [[ ! ${APIKEY:-} =~ $RE_KEY ]]; then
         echo "No valid API key"
         exit 9
     elif [[ -z ${HOSTS[@]} ]]; then
         echo "No valid host"
+        exit 9
+    elif [[ -z $( command -v wget ) && -z $( command -v curl ) ]]; then
+        echo "Necessary requirement (wget/curl) does not exist."
         exit 9
     fi
 }
@@ -147,48 +113,45 @@ load_log()
 {
     ## read old log
     local LINES=() IDX=0
-    if [[ -e $LOG ]]; then
-        local LINE CACHE LAST_HEAD HELPFUL
-        while read -r LINE; do
-            if [[ -z $LINE ]]; then
-                continue
-            elif [[ ${LINE:0:1} == "@" ]]; then
-                ## parse cache
-                [[ ${P_FORCE_FETCH:-false} == true ]] && continue
-                CACHE=$( echo -e ${LINE##*"="} )
-                case $LINE in
-                    "@Cache[IPv4-Address]"*)
-                        IP_ADDR_V4="$CACHE" ;;
-                    "@Cache[IPv6-Address]"*)
-                        IP_ADDR_V6="$CACHE" ;;
-                    "@Cache[Invalid-Hosts]"*)
-                        INV_HOSTS="${INV_HOSTS:-};$CACHE" ;;
-                    "@Cache[Record]"*)
-                        RECORDS+=("$CACHE") ;;
-                esac
-                continue
-            else
-                ## omit helpless line
-                IDX=$(( IDX + 1 ))
-                case $LINE in
-                    *"address has no change"*)           ;;
-                    *"address is unknown"*)             ;;
-                    *"network communication failed"*)   ;;
-                    "====="*)
-                        if [[ ${LAST_HEAD:-0} -gt 0 ]]; then
-                            [[ ${HELPFUL:-false} != true ]] && IDX="$LAST_HEAD"
-                        fi
-                        LAST_HEAD="$IDX"
-                        HELPFUL=false
-                        ;;
-                    *)
-                        HELPFUL=true ;;
-                esac
-                LINES[$IDX]=$LINE
-                continue
-            fi
-        done < $LOG
-    fi
+    local LINE CACHE HEAD_IDX HELPFUL
+    [[ ! -e $LOG ]] && echo -n "" > $LOG
+    while read -r LINE; do
+        if [[ -z $LINE ]]; then
+            continue
+        elif [[ ${LINE:0:1} == "@" ]]; then
+            ## parse cache
+            [[ ${IGNORE_CACHE:-false} == true ]] && continue
+            CACHE=$( echo -e ${LINE##*"="} )
+            case $LINE in
+                "@Cache[IPv4-Address]"*)
+                    IP_ADDR_V4="$CACHE" ;;
+                "@Cache[IPv6-Address]"*)
+                    IP_ADDR_V6="$CACHE" ;;
+                "@Cache[Invalid-Hosts]"*)
+                    INV_HOSTS="${INV_HOSTS:-};$CACHE" ;;
+                "@Cache[Record]"*)
+                    RECORDS+=("$CACHE") ;;
+            esac
+            continue
+        else
+            ## omit helpless line
+            IDX=$(( IDX + 1 ))
+            case $LINE in
+                *"address has no change"*)          ;;
+                *"address is unknown"*)             ;;
+                *"network communication failed"*)   ;;
+                "====="*)
+                    [[ ${HELPFUL:-false} != true ]] && IDX="${HEAD_IDX:-1}"
+                    HEAD_IDX="$IDX"
+                    HELPFUL=false
+                    ;;
+                *)
+                    HELPFUL=true ;;
+            esac
+            LINES[$IDX]=$LINE
+            continue
+        fi
+    done < $LOG
 
     ## rewrite old log with length control
     local START END HEAD
@@ -208,59 +171,56 @@ load_log()
 
 get_ip()
 {
-    local ARG POOL RE IP_SPECIFY
-    if [[ $1 == "-v4" ]]; then
-        ARG="-4"
+    local ARG POOL RE
+    if [[ $1 == "-4" ]]; then
         POOL=(
             "http://v4.ident.me"
-            "http://ip4.nnev.de"
-            "http://v4.ifconfig.co"
-            "http://ipv4.icanhazip.com"
-            "http://ipv4.wtfismyip.com/text"
+            "https://ip4.nnev.de"
+            "https://v4.ifconfig.co"
+            "https://ipv4.yunohost.org"
+            "https://ipv4.icanhazip.com"
+            "https://ipv4.wtfismyip.com/text"
+            "https://ipv4.ipecho.roebert.eu"
         )
         RE="^([0-9]{1,3}\.){3}[0-9]{1,3}$"
-    elif [[ $1 == "-v6" ]]; then
-        ARG="-6"
+    elif [[ $1 == "-6" ]]; then
         POOL=(
             "http://v6.ident.me"
-            "http://ip6.nnev.de"
-            "http://v6.ifconfig.co"
-            "http://ipv6.icanhazip.com"
-            "http://ipv6.wtfismyip.com/text"
+            "https://ip6.nnev.de"
+            "https://v6.ifconfig.co"
+            "https://ipv6.yunohost.org"
+            "https://ipv6.icanhazip.com"
+            "https://ipv6.wtfismyip.com/text"
+            "https://ipv6.ipecho.roebert.eu"
         )
         RE="^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{1,4}$"
     else
         return
     fi
-    IP_SPECIFY=${2:-}
+    ARG="$1"
 
-    local RES
-    if [[ $IP_SPECIFY =~ $RE ]]; then
-        RES="$IP_SPECIFY"
-    else
-        ## get public ip from pool in random order
-        local IDX IDX_RAN VAR
-        for (( IDX = ${#POOL[@]} - 1; IDX >= 0; IDX--  )); do
-            IDX_RAN=$(( $RANDOM % (IDX + 1) ))
-            VAR="${POOL[IDX]}"
-            POOL[$IDX]="${POOL[IDX_RAN]}"
-            POOL[$IDX_RAN]="$VAR"
-            set +e
-            if [[ -n $( command -v wget ) ]]; then
-                RES=$( wget -qO-  -t 1   -T 5 $ARG ${POOL[IDX]} )
-            elif [[ -n $( command -v curl ) ]]; then
-                RES=$( curl -s --retry 0 -m 5 $ARG ${POOL[IDX]} )
-            fi
-            set -e
-            if [[ $RES =~ $RE ]]; then
-                break
-            else
-                RES="NULL"
-            fi
-        done
-    fi
+    ## get public ip from pool in random order
+    local RES IDX IDX_RAN VAR
+    for (( IDX = ${#POOL[@]} - 1; IDX >= 0; IDX--  )); do
+        IDX_RAN=$(( $RANDOM % (IDX + 1) ))
+        VAR="${POOL[IDX]}"
+        POOL[$IDX]="${POOL[IDX_RAN]}"
+        POOL[$IDX_RAN]="$VAR"
+        set +e
+        if [[ -n $( command -v wget ) ]]; then
+            RES=$( wget -qO-  -t 1   -T 5 $ARG ${POOL[IDX]} )
+        elif [[ -n $( command -v curl ) ]]; then
+            RES=$( curl -s --retry 0 -m 5 $ARG ${POOL[IDX]} )
+        fi
+        set -e
+        if [[ $RES =~ $RE ]]; then
+            break
+        else
+            RES="NULL"
+        fi
+    done
 
-    if [[ ${RES:=NULL} == "NULL" ]]; then
+    if [[ ${RES:-NULL} == "NULL" ]]; then
         ## if ip-getting failed, cached ip will be applicated
         return
     elif [[ $ARG == "-4" && $RES != ${IP_ADDR_V4:-NULL} ]]; then
@@ -375,9 +335,6 @@ update_record()
         CHECK="Record type [$TYPE] is not supported"
         FAIL=$(( FAIL + 1 ))
     fi
-    if [[ ${P_FORCE_UPDATE:-false} == true ]]; then
-        [[ ${CHECK:-} == *"no change"* ]] && CHECK=""
-    fi
     if [[ -n ${CHECK:-} ]]; then
         echo "Update record [$TYPE//$HOST//${ID:0:4}]: $CHECK" >> $LOG
         FUNC_RETURN="$ID|$TYPE|$HOST|$VALUE|$TTL|$FAIL"
@@ -442,16 +399,10 @@ update_record()
 
 main()
 {
-    ## get public ip
-    if [[ -z ${P_IPV4:-} && -z ${P_IPV6:-} ]]; then
-        get_ip -v4
-        get_ip -v6
-    else
-        IP_ADDR_V4="NULL"
-        IP_ADDR_V6="NULL"
-        [[ -n ${P_IPV4:-} ]] && get_ip -v4 ${P_IPV4:-}
-        [[ -n ${P_IPV6:-} ]] && get_ip -v6 ${P_IPV6:-}
-    fi
+    ## preparations
+    load_log
+    get_ip -4
+    get_ip -6
     
     ## initialize host status dictionary
     declare -A STATUS
@@ -571,5 +522,4 @@ main()
 }
 
 parse_args $*
-load_log
 main

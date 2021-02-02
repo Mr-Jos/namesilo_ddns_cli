@@ -25,12 +25,6 @@ Therefore, light-weight Linux distributions are especially appropriate to use it
 
 * `wget` or `curl`
 
-# Tested System
-
-* `DSM 6.2.3`
-* `Ubuntu 20.04.1 LTS (WSL2)`
-* `EdgeRouter X v2.0.8-hotfix.1 (EdgeOS based on Debian 9)`
-
 # Usage
 
 ```bash
@@ -38,14 +32,9 @@ Usage: namesilo_ddns.sh <command> ... [parameters ...]
 Commands:
   --help                   Show this help message
   --version                Show version info
-  --key,  -k <apikey>      Specify Namesilo API key
+  --key, -k <apikey>       Specify Namesilo API key
   --host, -h <host>        Add a hostname
-  --ipv4, -4 <ipaddr>      Only update A records 
-                             with specified IP (default: auto)
-  --ipv6, -6 <ipaddr>      Only update AAAA records 
-                             with specified IP (default: auto)
-  --force-fetch            Forcely fetch records ignoring cache
-  --force-update           Forcely update IP even if not change
+  --refetch, -r            Refetch records from Namesilo
 
 Example:
   namesilo_ddns.sh -k c40031261ee449037a4b44b1 \
@@ -59,8 +48,8 @@ Exit codes:
     9    Arguments error
 
 Tips:
-  Recommand to force fetching records or delete cache in log,
-  if one of your DNS records have been modified by other ways.
+  Strongly recommand to refetch records or clear caches in log,
+  if your DNS records have been updated by other ways.
 ```
 
 You can also edit the configs and settings in the head of script.
@@ -123,13 +112,11 @@ crontab -e
 
   1. Edit the API key and hosts in this script, and save as `ddns-start`.
 ```bash
-#! /bin/bash
+#!/usr/bin/env bash
 
 ./namesilo_ddns.sh -k c40031261ee449037a4b44b1 \
       -h subdomain1.yourdomain1.tld \
-      -h subdomain2.yourdomain2.tld \
-      --ipv4 "$1"
-      --ipv6 auto
+      -h subdomain2.yourdomain2.tld
 
 if [ $? -eq 0 ]; then
   /sbin/ddns_custom_updated 1
