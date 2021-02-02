@@ -23,7 +23,7 @@ Therefore, light-weight Linux distributions are especially appropriate to use it
 
 # Requirements
 
-* Necessary: `wget` or `curl`
+* `wget` or `curl`
 
 # Tested System
 
@@ -38,11 +38,11 @@ Usage: namesilo_ddns.sh <command> ... [parameters ...]
 Commands:
   --help                   Show this help message
   --version                Show version info
-  --key, -k <apikey>       Specify API key of Namesilo
-  --host, -h <host>        Add a host to filter current records
-  --ipv4 <ipaddr>          Only update A records 
+  --key,  -k <apikey>      Specify Namesilo API key
+  --host, -h <host>        Add a hostname
+  --ipv4, -4 <ipaddr>      Only update A records 
                              with specified IP (default: auto)
-  --ipv6 <ipaddr>          Only update AAAA records 
+  --ipv6, -6 <ipaddr>      Only update AAAA records 
                              with specified IP (default: auto)
   --force-fetch            Forcely fetch records ignoring cache
   --force-update           Forcely update IP even if not change
@@ -54,13 +54,13 @@ Example:
       -h subdomain2.yourdomain2.tld
 
 Exit codes:
-    0    All hosts have been updated successful.
-    1    Occur error during preparing parameters.
-    2    Occur error during fetching & updating records.
+    0    Successfully updating for all host(s)
+    2    Exist updating failed host(s)
+    9    Arguments error
 
 Tips:
   Recommand to force fetching records or delete cache in log,
-  if one of your DNS records have been modified in other ways.
+  if one of your DNS records have been modified by other ways.
 ```
 
 You can also edit the configs and settings in the head of script.
